@@ -14,7 +14,7 @@ import { NATIVE_MINT } from '@solana/spl-token'
 export const createPool = async () => {
   const raydium = await initSdk(process.env.PRIVATE_KEY as string)
 
-  const mintA = await raydium.token.getTokenInfo('regUhfQcL8eepui3rt8muxtjCRzkR3mM52yeCoP4mme')
+  const mintA = await raydium.token.getTokenInfo('nfa8GzC5wr3Xtm2qZrssQadeU8iHKEHjVeZmvoRFqXg')
   const mintB = await raydium.token.getTokenInfo('So11111111111111111111111111111111111111112')
 
   const feeConfigs = await raydium.api.getCpmmConfigs()
@@ -39,10 +39,10 @@ export const createPool = async () => {
       useSOLBalance: true,
     },
     txVersion,
-    // computeBudgetConfig: {
-    //   units: 600000,
-    //   microLamports: 46591500,
-    // },
+    computeBudgetConfig: {
+      units: 700000,
+      microLamports: 46591500,
+    },
   })
 
   const { txId } = await execute({ sendAndConfirm: true })
@@ -72,11 +72,13 @@ export const createPool = async () => {
 
 async function startBuy(poolId: string) {
   try {
-      const walletSecretKeys: string[] = []; //add all wallets keys in this array
-      const input = '100000000' //1 sol
+      const walletSecretKeys: string[] = [
+
+      ]; //add all wallets keys in this array
+      const input = '10000000000000' //100,000
       for (let i = 0; i < walletSecretKeys.length; i++) {
           const privKey = walletSecretKeys[i];
-          const result = BuyToken(input, privKey, poolId); //not using await here to run all swaps in parallel
+          const result = await swapBaseOut(input, privKey, poolId); //not using await here to run all swaps in parallel
           console.log('result', result);
       }
       
@@ -85,68 +87,78 @@ async function startBuy(poolId: string) {
   }
 }
 
-async function BuyToken(input: string, privKey: string, poolId: string) {
-  try {
-      const raydium = await initSdk(privKey)
+export const swapBaseOut = async (input: string, privKey: string, poolId: string) => {
+  const raydium = await initSdk(privKey)
 
-      console.log("Buying Token", input);
-      const inputAmount = new BN(input)
-      const inputMint = NATIVE_MINT.toBase58()
-    
-      let poolInfo: ApiV3PoolInfoStandardItemCpmm
-      let poolKeys: CpmmKeys | undefined
-      let rpcData: CpmmRpcData
-    
-      if (raydium.cluster === 'mainnet') {
-          const data = await raydium.api.fetchPoolById({ ids: poolId })
-          poolInfo = data[0] as ApiV3PoolInfoStandardItemCpmm
-          if (!isValidCpmm(poolInfo.programId)) throw new Error('target pool is not CPMM pool')
-          rpcData = await raydium.cpmm.getRpcPoolInfo(poolInfo.id, true)
-      } else {
-          const data = await raydium.cpmm.getPoolInfoFromRpc(poolId)
-          poolInfo = data.poolInfo
-          poolKeys = data.poolKeys
-          rpcData = data.rpcData
-      }
-    
-      if (inputMint !== poolInfo.mintA.address && inputMint !== poolInfo.mintB.address)
-          throw new Error('input mint does not match pool')
-    
-      const baseIn = inputMint === poolInfo.mintA.address
-    
-      // swap pool mintA for mintB
-      const swapResult = CurveCalculator.swap(
-          inputAmount,
-          baseIn ? rpcData.baseReserve : rpcData.quoteReserve,
-          baseIn ? rpcData.quoteReserve : rpcData.baseReserve,
-          rpcData.configInfo!.tradeFeeRate
-      )
-    
-      const { execute } = await raydium.cpmm.swap({
-          poolInfo,
-          poolKeys,
-          inputAmount,
-          swapResult,
-          slippage: 0.001,
-          baseIn,
-          computeBudgetConfig: {
-              units: 730000,
-              microLamports: 5899150,
-          },
-      })
-    
-      const { txId } = await execute({ sendAndConfirm: true })
-      console.log(`swapped: ${poolInfo.mintA.symbol} to ${poolInfo.mintB.symbol}:`, {
-          txId: `https://explorer.solana.com/tx/${txId}`,
-      })
+  const outputAmount = new BN('1668338')
+  const outputMint = "So11111111111111111111111111111111111111112"
 
-      return swapResult.destinationAmountSwapped.toString();
+  let poolInfo: ApiV3PoolInfoStandardItemCpmm
+  let poolKeys: CpmmKeys | undefined
+  let rpcData: CpmmRpcData
 
-  } catch (error) {
-      console.error(error)
+  if (raydium.cluster === 'mainnet') {
+    const data = await raydium.api.fetchPoolById({ ids: poolId })
+    poolInfo = data[0] as ApiV3PoolInfoStandardItemCpmm
+    if (!isValidCpmm(poolInfo.programId)) throw new Error('target pool is not CPMM pool')
+    rpcData = await raydium.cpmm.getRpcPoolInfo(poolInfo.id, true)
+  } else {
+    const data = await raydium.cpmm.getPoolInfoFromRpc(poolId)
+    poolInfo = data.poolInfo
+    poolKeys = data.poolKeys
+    rpcData = data.rpcData
   }
+
+  if (outputMint !== poolInfo.mintA.address && outputMint !== poolInfo.mintB.address)
+    throw new Error('input mint does not match pool')
+
+  console.log(poolInfo, "================")
+
+  const baseIn = outputMint === poolInfo.mintB.address
+
+  const swapResult = CurveCalculator.swapBaseOut({
+    poolMintA: poolInfo.mintA,
+    poolMintB: poolInfo.mintB,
+    tradeFeeRate: rpcData.configInfo!.tradeFeeRate,
+    baseReserve: rpcData.baseReserve,
+    quoteReserve: rpcData.quoteReserve,
+    outputMint,
+    outputAmount,
+  })
+
+  const { execute, transaction } = await raydium.cpmm.swap({
+    poolInfo,
+    poolKeys,
+    inputAmount: new BN(0), // if set fixedOut to true, this arguments won't be used
+    fixedOut: true,
+    swapResult: {
+      sourceAmountSwapped: swapResult.amountIn,
+      destinationAmountSwapped: outputAmount,
+    },
+    baseIn,
+    txVersion,
+    slippage: 0.1, 
+    // optional: set up priority fee here
+    computeBudgetConfig: {
+      units: 710000,
+      microLamports: 5859150,
+    },
+  })
+
+try {
+  const { txId } = await execute({ sendAndConfirm: true })
+  console.log(`swapped: ${poolInfo.mintA.symbol} to ${poolInfo.mintB.symbol}:`, {
+    txId: `https://explorer.solana.com/tx/${txId}`,
+  })
+} catch (error) {
+  console.log(error)
+}
+
 }
 
 async function main(){
-  await createPool();
+  // const poolId = await createPool();
+  await startBuy('AYhpje7gHcqQ58bqGUHHUibKkuECEgQUomn2Ho13YwT6');
 }
+
+main();
