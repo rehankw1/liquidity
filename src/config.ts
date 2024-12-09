@@ -5,8 +5,9 @@ import bs58 from 'bs58'
 import 'dotenv/config'
 
 let owner: Keypair
-export const connection = new Connection('https://api.devnet.solana.com') //<YOUR_RPC_URL>
+// export const connection = new Connection(process.env.RPC_URL as string) //<YOUR_RPC_URL>
 // export const connection = new Connection(clusterApiUrl('devnet')) //<YOUR_RPC_URL>
+export const connection = new Connection(process.env.RPC_URL as string, 'processed') 
 export const txVersion = TxVersion.V0 // or TxVersion.LEGACY
 const cluster = 'devnet' // 'mainnet' | 'devnet'
 
@@ -14,7 +15,8 @@ let raydium: Raydium | undefined
 export const initSdk = async (walletPrivKey: string) => {
   owner = Keypair.fromSecretKey(bs58.decode(walletPrivKey as string))
 
-  if (raydium) return raydium
+  // console.log('owner', owner.publicKey.toBase58())
+
   if (connection.rpcEndpoint === clusterApiUrl('mainnet-beta'))
     console.warn('using free rpc node might cause unexpected error, strongly suggest uses paid rpc node')
   console.log(`connect to rpc ${connection.rpcEndpoint} in ${cluster}`)
@@ -23,7 +25,7 @@ export const initSdk = async (walletPrivKey: string) => {
     connection,
     cluster,
     disableFeatureCheck: true,
-    blockhashCommitment: 'finalized',
+    blockhashCommitment: 'processed',
     // urlConfigs: {
     //   BASE_HOST: '<API_HOST>', // api url configs, currently api doesn't support devnet
     // },
