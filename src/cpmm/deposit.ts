@@ -6,10 +6,11 @@ import { isValidCpmm } from './utils'
 import { VersionedTransaction, TransactionInstruction, TransactionMessage, Keypair, MessageV0, Connection, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58'
 import 'dotenv/config'
-import BufferLayout from '@solana/buffer-layout';
+import { e } from '@raydium-io/raydium-sdk-v2/lib/api-f6d3edc7'
 
-const connection = new Connection(process.env.RPC_URL as string, 'processed');
+const connection = new Connection('https://devnet.helius-rpc.com/?api-key=0fb097be-11d3-4376-b40a-d80d475aa336', 'processed');
 
+const SOL_DECIMALS = 10 ** 9;
 
 export const deposit = async () => {
   const raydium = await initSdk(process.env.PRIVATE_KEY as string)
@@ -60,13 +61,30 @@ export const depositAndSwap = async () => {
         let poolInfo: ApiV3PoolInfoStandardItemCpmm;
         let poolKeys: CpmmKeys | undefined;
 
+        const walletSecretKeys = [
+            '5fsgrScPA1HYpX7Tv5MPhBzNC3VwGpe5FoNTn4NrpFs5D3syxVmtXDsJcAKERQq7xh7SVLSktueDMACTgurk63Ad',
+            '4iMm7bLNRcHC43HDhncyafWwpmhDia4puymMuLo8qMeZXVAW1DWvojp69RCATPAGAfN5ZvXt54Gr7E5vFDEbpZD8',
+            '2qTMGEsZQD76cPDmY3w1Qi625Skvzphmr2AQowVY2C6Crw6yjQrh2A2J4UtSPMHVJ5AeB5SatavXZGfWvB4Mj7iS',
+            '5UJsSbxw1UFJjdENR8UGkiBhv988Npw8YMBmLpLw4u8vDCrTNE6smxAFnYeQqhWxyeWXRkVTZEfJmWf5wf8zY7Du',
+            '5BPtC9HhfMqEuZr1PcZ77jtHbWCEq8jFn1d3uTAK9Uwfbpvvk5J9V8h2zrWJRoWEpycLtduFqEdQzcjZx7EVpbmt',
+            '5RNkzQybyCGfWaVVRVdZJZvENrnPbwoybSiZCXgmDSkwpoQymSbq4HHE5TMUW2q4mHkMAqBW46a13vZrzn66rABm',
+            'yQRVxGhjhp5mAxR9AbS38BjHig7K8Gcj1AwFLdFAUz7PtY7afD7v2527ryAcZSNg5Ft59BiS99gBPFWXZ8A4Ln6',
+            '2JeBQNJ93DMUb47MvfeRXp8hrmR8YFFGT48gPHZuScpCLtpvcWs6pVD5STGkg77QjaJJT7nG6qVddKEmQb99xjfh',
+            '296E4EWWsKc67ThBD2CggkfnejyeN1uUjQ9bZQSgz3jvuVDCbLReJzXCXaDQg7wA8FqAk2ZkJBFLvmHXShT8r2Uj',
+            '2bZVtpk86jCSW8gMKGyQpgywWqstEb9oU1o1Y5XLfceiJZn6RKN8LF7koAXPXPUXvWd6fGNyyam4YFGaEXmaMrQs'
+        ];
+        const swapWallets = walletSecretKeys.map((key) => Keypair.fromSecretKey(bs58.decode(key)));
+
         const data = await raydium.cpmm.getPoolInfoFromRpc(poolId);
         poolInfo = data.poolInfo;
         poolKeys = data.poolKeys;
 
         const rpcData = data.rpcData;
 
-        const input = '0.0001';
+        // console.log(rpcData, "rpcData");
+        // return
+
+        const input = '0.0006';
 
         const userMintAAmount = new BN(new Decimal(input).mul(10 ** poolInfo.mintA.decimals).toFixed(0));
 
@@ -74,11 +92,26 @@ export const depositAndSwap = async () => {
         const mintBInPool = poolInfo.mintAmountB;
         const priceOfMintAInMintB = poolInfo.price;
 
-        const equivalentMintBAmount = new Decimal(userMintAAmount.toString()).mul(priceOfMintAInMintB).div(new Decimal(10 ** poolInfo.mintA.decimals));
-        const userMintBAmount = new BN(equivalentMintBAmount.toFixed(0));
+        const equivalentMintBAmount = new Decimal(userMintAAmount.toString())
+            .mul(priceOfMintAInMintB)
+            .div(new Decimal(10 ** poolInfo.mintA.decimals));
 
-        const updatedBaseReserve = new BN(mintAInPool).add(userMintAAmount); // New base reserve (mintA)
-        const updatedQuoteReserve = new BN(mintBInPool).add(userMintBAmount); // New quote reserve (mintB)
+        const equivalentMintBAmountInLamports = equivalentMintBAmount.mul(SOL_DECIMALS);    
+
+        console.log(equivalentMintBAmountInLamports, "equivalentMintBAmount"); 
+
+        // console.log(mintAInPool, mintBInPool, "mintAInPool, mintBInPool");
+
+        const currentBaseReserve = rpcData.baseReserve;
+        const currentQuoteReserve = rpcData.quoteReserve;
+        console.log(currentBaseReserve.toNumber(), currentQuoteReserve.toNumber(), "currentBaseReserve, currentQuoteReserve");
+
+        const updatedBaseReserve = currentBaseReserve.add(userMintAAmount); 
+        const updatedQuoteReserve = currentQuoteReserve.add(new BN(equivalentMintBAmountInLamports.toFixed(0))); 
+
+        console.log(updatedBaseReserve.toNumber(), updatedQuoteReserve.toNumber(), "updatedBaseReserve, updatedQuoteReserve");
+        // return
+
 
         const slippage = new Percent(1, 100);
         const baseIn = true;
@@ -95,132 +128,61 @@ export const depositAndSwap = async () => {
 
         const addTransaction = new VersionedTransaction(addLiquidityTransaction.message);
         addTransaction.sign([wallet]);
-        // const addSignature = await connection.sendTransaction(addTransaction);
-        // console.log("Add Liquidity Transaction Signature:", addSignature);
 
-        // Calculate the swap result using updated reserves
-        const outputAmount = new BN('100000000'); // Output amount after swap
-        const outputMint = poolInfo.mintA.address; // Assuming swap to mintA
+        const swapTransactions = [];
+        for(const wallet of swapWallets) {
 
-        const swapResult = CurveCalculator.swapBaseOut({
-            poolMintA: poolInfo.mintA,
-            poolMintB: poolInfo.mintB,
-            tradeFeeRate: rpcData.configInfo!.tradeFeeRate,
-            baseReserve: updatedBaseReserve,
-            quoteReserve: updatedQuoteReserve,
-            outputMint,
-            outputAmount,
-        });
+            const walletRaydium = await initSdk(bs58.encode(wallet.secretKey));
 
-        // Now execute the swap
-        const { execute: swapExecute, transaction: swapTransaction } = await raydium.cpmm.swap({
-            poolInfo,
-            poolKeys,
-            inputAmount: swapResult.amountIn,
-            fixedOut: true,
-            swapResult: {
-                sourceAmountSwapped: swapResult.amountIn,
-                destinationAmountSwapped: outputAmount,
-            },
-            baseIn,
-            txVersion,
-            slippage: 1,
-            computeBudgetConfig: {
-                units: 710000,
-                microLamports: 5859150,
-            },
-        });
+            const outputAmount = new BN('10000000000000');
+            const outputMint = "zaQ4ttf2HRQ7M8yj5Bg53phRnDoLbXfssBxXJdyD7gb";
+    
+            const swapResult = CurveCalculator.swapBaseOut({
+                poolMintA: poolInfo.mintA,
+                poolMintB: poolInfo.mintB,
+                tradeFeeRate: rpcData.configInfo!.tradeFeeRate,
+                baseReserve: updatedBaseReserve,
+                quoteReserve: updatedQuoteReserve,
+                outputMint,
+                outputAmount,
+            });
 
-        const transactionSwap = new VersionedTransaction(swapTransaction.message);
-        transactionSwap.sign([wallet]);
+            const { execute: swapExecute, transaction: swapTransaction } = await walletRaydium.cpmm.swap({
+                poolInfo,
+                poolKeys,
+                inputAmount: swapResult.amountIn,
+                fixedOut: true,
+                swapResult: {
+                    sourceAmountSwapped: swapResult.amountIn,
+                    destinationAmountSwapped: outputAmount,
+                },
+                baseIn,
+                txVersion,
+                slippage: 1,
+                computeBudgetConfig: {
+                    units: 710000,
+                    microLamports: 5859150,
+                },
+            });
+    
+            const transactionSwap = new VersionedTransaction(swapTransaction.message);
+            transactionSwap.sign([wallet]);
 
-        const serialized = addTransaction.serialize();
-        console.log('Transaction size:', serialized.length);
-        return
+            swapTransactions.push(transactionSwap);
+        }
 
-        // const addLiquiditySignature = connection.sendTransaction(addTransaction);
-        // console.log("Add Liquidity Transaction Signature:", addLiquiditySignature);
-        // await new Promise((resolve) => setTimeout(resolve, 500));
-        // const swapSignature = connection.sendTransaction(transactionSwap);
-        // console.log("Swap Transaction Signature:", swapSignature);
+        const addLiquiditySignature = connection.sendTransaction(addTransaction);
+            await new Promise((resolve) => setTimeout(resolve, 400)); // 400ms delay
+        for (const swapTransaction of swapTransactions) {
+            const swapSignature = connection.sendTransaction(swapTransaction);
+            console.log("Swap Transaction Signature:", swapSignature);
+        }
+
 
         return;
-
-
-        console.log("Add Liquidity Transaction:", addLiquidityTransaction);
-        console.log("Swap Transaction:", swapTransaction);
-
-
-        // Combine the add liquidity and swap transactions into one
-        const combinedInstructions = [
-            ...addLiquidityTransaction.message.compiledInstructions,
-            ...swapTransaction.message.compiledInstructions
-        ];
-
-        const combinedMessage = new MessageV0({
-            header: {
-                numRequiredSignatures: 1,
-                numReadonlySignedAccounts: 0,
-                numReadonlyUnsignedAccounts: 10,
-            },
-            staticAccountKeys: [
-                ...addLiquidityTransaction.message.staticAccountKeys,
-                ...swapTransaction.message.staticAccountKeys,
-            ],
-            compiledInstructions: combinedInstructions,
-            recentBlockhash: swapTransaction.message.recentBlockhash,
-            addressTableLookups: addLiquidityTransaction.message.addressTableLookups,
-        });
-
-
-        const combinedTransaction = new VersionedTransaction(combinedMessage);
-        // const serialized = combinedTransaction.serialize();
-        // console.log('Transaction size:', serialized.length);
-        return
-
-        const latestBlockhash = await connection.getLatestBlockhash();
-        combinedMessage.recentBlockhash = latestBlockhash.blockhash;
-        
-
-        combinedTransaction.sign([wallet]);
-
-
-
-        const signature = await connection.sendTransaction(combinedTransaction);
-        console.log("Combined Transaction Signature:", signature);
     } catch (error) {
         console.error("Error in depositAndSwap:", error);
     }
 };
-
-function removeDuplicateKeys(keys: PublicKey[]): PublicKey[] {
-    const uniqueKeys: PublicKey[] = [];
-    const seenKeys = new Set<string>();
-
-    for (const key of keys) {
-        const keyString = key.toBase58();
-        if (!seenKeys.has(keyString)) {
-            uniqueKeys.push(key);
-            seenKeys.add(keyString);
-        }
-    }
-
-    return uniqueKeys;
-}
-
-//@ts-ignore
-const decodeInstruction = (data) => {
-    try {
-      const layout = BufferLayout.struct<{ version: number; payload: Buffer }>([
-        BufferLayout.u8('version'),
-        //@ts-ignore
-        BufferLayout.blob<Buffer>(data.length - 1, 'payload'),
-      ]);
-      return layout.decode(data);
-    } catch (error) {
-      console.error("Error decoding instruction:", error);
-      return null;
-    }
-  };
 
 depositAndSwap();

@@ -73,16 +73,23 @@ export const createPool = async () => {
   } catch (error) {
     console.log("error",error)
     return null
-  }
-
-  
+  } 
 
 }
 
 async function startBuy(poolId: string) {
   try {
       const walletSecretKeys: string[] = [
-       
+        '5fsgrScPA1HYpX7Tv5MPhBzNC3VwGpe5FoNTn4NrpFs5D3syxVmtXDsJcAKERQq7xh7SVLSktueDMACTgurk63Ad',
+        '4iMm7bLNRcHC43HDhncyafWwpmhDia4puymMuLo8qMeZXVAW1DWvojp69RCATPAGAfN5ZvXt54Gr7E5vFDEbpZD8',
+        '2qTMGEsZQD76cPDmY3w1Qi625Skvzphmr2AQowVY2C6Crw6yjQrh2A2J4UtSPMHVJ5AeB5SatavXZGfWvB4Mj7iS',
+        '5UJsSbxw1UFJjdENR8UGkiBhv988Npw8YMBmLpLw4u8vDCrTNE6smxAFnYeQqhWxyeWXRkVTZEfJmWf5wf8zY7Du',
+        '5BPtC9HhfMqEuZr1PcZ77jtHbWCEq8jFn1d3uTAK9Uwfbpvvk5J9V8h2zrWJRoWEpycLtduFqEdQzcjZx7EVpbmt',
+        '5RNkzQybyCGfWaVVRVdZJZvENrnPbwoybSiZCXgmDSkwpoQymSbq4HHE5TMUW2q4mHkMAqBW46a13vZrzn66rABm',
+        'yQRVxGhjhp5mAxR9AbS38BjHig7K8Gcj1AwFLdFAUz7PtY7afD7v2527ryAcZSNg5Ft59BiS99gBPFWXZ8A4Ln6',
+        '2JeBQNJ93DMUb47MvfeRXp8hrmR8YFFGT48gPHZuScpCLtpvcWs6pVD5STGkg77QjaJJT7nG6qVddKEmQb99xjfh',
+        '296E4EWWsKc67ThBD2CggkfnejyeN1uUjQ9bZQSgz3jvuVDCbLReJzXCXaDQg7wA8FqAk2ZkJBFLvmHXShT8r2Uj',
+        '2bZVtpk86jCSW8gMKGyQpgywWqstEb9oU1o1Y5XLfceiJZn6RKN8LF7koAXPXPUXvWd6fGNyyam4YFGaEXmaMrQs'
       ]; //add all wallets keys in this array
       const input = '100000000' //100,000
       const privKey = walletSecretKeys[0];

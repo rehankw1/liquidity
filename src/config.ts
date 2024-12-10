@@ -15,7 +15,7 @@ let raydium: Raydium | undefined
 export const initSdk = async (walletPrivKey: string) => {
   owner = Keypair.fromSecretKey(bs58.decode(walletPrivKey as string))
 
-  // console.log('owner', owner.publicKey.toBase58())
+  console.log('owner', owner.publicKey.toBase58())
 
   if (connection.rpcEndpoint === clusterApiUrl('mainnet-beta'))
     console.warn('using free rpc node might cause unexpected error, strongly suggest uses paid rpc node')
